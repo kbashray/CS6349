@@ -11,9 +11,6 @@ public class Broker
     // Vector to store active clients
     static Vector<ClientHandler> ar = new Vector<>();
 
-    // counter for clients
-    static int i = 0;
-
     // Public private key pair
     static PublicKey publicKey;
     static PrivateKey privateKey;
@@ -71,10 +68,12 @@ public class Broker
             DataInputStream dis = new DataInputStream(s.getInputStream());
             DataOutputStream dos = new DataOutputStream(s.getOutputStream());
 
+            String name = dis.readUTF();
+
             System.out.println("Creating a new handler for this client...");
 
             // Create a new handler object for handling this request.
-            ClientHandler mtch = new ClientHandler(s,"client " + i, dis, dos);
+            ClientHandler mtch = new ClientHandler(s, name, dis, dos);
 
             // Create a new Thread with this object.
             Thread t = new Thread(mtch);
@@ -86,11 +85,6 @@ public class Broker
 
             // start the thread.
             t.start();
-
-            // increment i for new client.
-            // i is used for naming only, and can be replaced
-            // by any naming scheme
-            i++;
 
         }
     }

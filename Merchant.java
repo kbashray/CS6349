@@ -59,6 +59,8 @@ public class Merchant
         DataInputStream dis = new DataInputStream(s.getInputStream());
         DataOutputStream dos = new DataOutputStream(s.getOutputStream());
 
+        dos.writeUTF("merchant");
+
         // sendMessage thread
         Thread sendMessage = new Thread(new Runnable()
         {

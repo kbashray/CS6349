@@ -63,6 +63,8 @@ public class Customer
         DataInputStream dis = new DataInputStream(s.getInputStream());
         DataOutputStream dos = new DataOutputStream(s.getOutputStream());
 
+        dos.writeUTF("customer" + id);
+
         // sendMessage thread
         Thread sendMessage = new Thread(new Runnable()
         {
