@@ -15,6 +15,9 @@ public class Merchant
     static PublicKey publicKey;
     static PrivateKey privateKey;
 
+    // Broker public key
+    static PublicKey brokerKey;
+
     public static void main(String args[]) throws IOException
     {
         // Used to generate public private key pair
@@ -39,22 +42,10 @@ public class Merchant
         */
 
         // Read public private keys from files
-        try {
-            File publicKeyFile = new File("merchant\\public.key");
-            byte[] publicKeyBytes = Files.readAllBytes(publicKeyFile.toPath());
+        publicKey = getPublicKey("merchant\\public.key");
+        privateKey = getPrivateKey("merchant\\private.key");
 
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-            EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-            publicKey = keyFactory.generatePublic(publicKeySpec);
-
-            File privateKeyFile = new File("merchant\\private.key");
-            byte[] privateKeyBytes = Files.readAllBytes(privateKeyFile.toPath());
-
-            EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-            privateKey = keyFactory.generatePrivate(privateKeySpec);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
+        brokerKey = getPublicKey("broker\\public.key");
 
         Scanner scn = new Scanner(System.in);
 
@@ -112,5 +103,35 @@ public class Merchant
         sendMessage.start();
         readMessage.start();
 
+    }
+
+    private static PublicKey getPublicKey(String path) {
+        try {
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+
+            File publicKeyFile = new File(path);
+            byte[] publicKeyBytes = Files.readAllBytes(publicKeyFile.toPath());
+
+            EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
+            return keyFactory.generatePublic(publicKeySpec);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    private static PrivateKey getPrivateKey(String path) {
+        try {
+            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+
+            File privateKeyFile = new File(path);
+            byte[] privateKeyBytes = Files.readAllBytes(privateKeyFile.toPath());
+
+            EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
+            return keyFactory.generatePrivate(privateKeySpec);
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return null;
     }
 }
