@@ -1,99 +1,37 @@
 import java.io.*;
 import java.net.*;
-import java.nio.file.Files;
-import java.security.spec.EncodedKeySpec;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
-import java.util.Scanner;
 import java.security.*;
+import java.util.Base64;
+import java.util.Scanner;
 
-public class Customer
-{
-    final static int ServerPort = 1234;
+public class Customer {
+    private Socket socket;
+    private DataInputStream dis;
+    private DataOutputStream dos;
+    private PublicKey brokerPublicKey;
+    private PrivateKey customerPrivateKey;
 
-    // Public private key pair
-    static PublicKey publicKey;
-    static PrivateKey privateKey;
-
-    // Broker and merchant public keys
-    static PublicKey brokerKey, merchKey;
-
-    public static void main(String args[]) throws IOException
-    {
-        // Used to generate public private key pair
-        /*
+    public Customer(String address, int port, PrivateKey privateKey, PublicKey publicKey) {
         try {
-            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(2048);
-            KeyPair pair = generator.generateKeyPair();
-
-            PrivateKey privateKey = pair.getPrivate();
-            PublicKey publicKey = pair.getPublic();
-
-            try (FileOutputStream fos = new FileOutputStream("customer\\public" + id + ".key")) {
-                fos.write(publicKey.getEncoded());
-            }
-            try (FileOutputStream fos = new FileOutputStream("customer\\private" + id + ".key")) {
-                fos.write(privateKey.getEncoded());
-            }
-        } catch (NoSuchAlgorithmException e) {
+            this.socket = new Socket(address, port);
+            this.dis = new DataInputStream(socket.getInputStream());
+            this.dos = new DataOutputStream(socket.getOutputStream());
+            this.customerPrivateKey = privateKey;
+            this.brokerPublicKey = publicKey;
+        } catch (Exception e) {
             e.printStackTrace();
         }
-        */
+    }
 
-        int id = Integer.parseInt(args[0]);
+    public void start() {
+        try {
+            // Authenticate with the broker
+            authenticateWithBroker();
 
-        // Read public private keys from files
-        publicKey = getPublicKey("customer\\public" + id + ".key");
-        privateKey = getPrivateKey("customer\\private" + id + ".key");
-
-        brokerKey = getPublicKey("broker\\public.key");
-
-        merchKey = getPublicKey("merchant\\public.key");
-
-        Scanner scn = new Scanner(System.in);
-
-        // getting localhost ip
-        InetAddress ip = InetAddress.getByName("localhost");
-
-        // establish the connection
-        Socket s = new Socket(ip, ServerPort);
-
-        // obtaining input and out streams
-        DataInputStream dis = new DataInputStream(s.getInputStream());
-        DataOutputStream dos = new DataOutputStream(s.getOutputStream());
-
-        // sendMessage thread
-        Thread sendMessage = new Thread(new Runnable()
-        {
-            @Override
-            public void run() {
-
-                while (true) {
-
-                    // read the message to deliver.
-                    String msg = scn.nextLine();
-
-                    try {
-                        // write on the output stream
-                        dos.writeUTF(msg);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        break;
-                    }
-                }
-            }
-        });
-
-        // readMessage thread
-        Thread readMessage = new Thread(new Runnable()
-        {
-            @Override
-            public void run() {
-
+            // Start listening for messages from the server
+            Thread readMessage = new Thread(() -> {
                 while (true) {
                     try {
-                        // read the message sent to this client
                         String msg = dis.readUTF();
                         System.out.println(msg);
                     } catch (IOException e) {
@@ -101,41 +39,51 @@ public class Customer
                         break;
                     }
                 }
+            });
+
+            readMessage.start();
+
+            // Send requests to the broker
+            Scanner scn = new Scanner(System.in);
+            while (true) {
+                String msgToSend = scn.nextLine();
+                dos.writeUTF(msgToSend);
+
+                if (msgToSend.equals("logout")) {
+                    socket.close();
+                    break;
+                }
             }
-        });
-
-        sendMessage.start();
-        readMessage.start();
-
-    }
-
-    private static PublicKey getPublicKey(String path) {
-        try {
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-
-            File publicKeyFile = new File(path);
-            byte[] publicKeyBytes = Files.readAllBytes(publicKeyFile.toPath());
-
-            EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-            return keyFactory.generatePublic(publicKeySpec);
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return null;
     }
 
-    private static PrivateKey getPrivateKey(String path) {
+    private void authenticateWithBroker() throws Exception {
+        // Send a message to the broker for authentication
+        String authMessage = "CustomerAuth";
+        String signedMessage = signMessage(authMessage, customerPrivateKey);
+        dos.writeUTF(signedMessage);
+    }
+
+    private String signMessage(String message, PrivateKey privateKey) throws Exception {
+        Signature signature = Signature.getInstance("SHA256withRSA");
+        signature.initSign(privateKey);
+        signature.update(message.getBytes());
+        byte[] signedBytes = signature.sign();
+        return Base64.getEncoder().encodeToString(signedBytes);
+    }
+
+    public static void main(String[] args) {
         try {
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+            // Load customer's private key and broker's public key
+            PrivateKey customerPrivateKey = KeyPairUtil.loadPrivateKey("customerPrivateKey");
+            PublicKey brokerPublicKey = KeyPairUtil.loadPublicKey("brokerPublicKey");
 
-            File privateKeyFile = new File(path);
-            byte[] privateKeyBytes = Files.readAllBytes(privateKeyFile.toPath());
-
-            EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-            return keyFactory.generatePrivate(privateKeySpec);
+            Customer client = new Customer("127.0.0.1", 1234, customerPrivateKey, brokerPublicKey);
+            client.start();
         } catch (Exception e) {
             e.printStackTrace();
         }
-        return null;
     }
 }
