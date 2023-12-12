@@ -1,13 +1,10 @@
 import java.io.*;
-import java.nio.file.Files;
 import java.util.*;
 import java.net.*;
 import java.security.*;
-import java.security.spec.*;
 
 public class Broker
 {
-
     // Vector to store active clients
     static Vector<ClientHandler> ar = new Vector<>();
 
@@ -16,39 +13,34 @@ public class Broker
     static PrivateKey privateKey;
 
     // Customer and merchant public keys
-    static PublicKey cust1Key, cust2Key, merchKey;
+    static PublicKey c1Key, c2Key, mKey;
 
-    public static void main(String[] args) throws IOException
-    {
+    public static void main(String[] args) throws Exception {
         // Used to generate public private key pair
         /*
-        try {
-            KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-            generator.initialize(2048);
-            KeyPair pair = generator.generateKeyPair();
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        KeyPair pair = generator.generateKeyPair();
 
-            PrivateKey privateKey = pair.getPrivate();
-            PublicKey publicKey = pair.getPublic();
+        PrivateKey privateKey = pair.getPrivate();
+        PublicKey publicKey = pair.getPublic();
 
-            try (FileOutputStream fos = new FileOutputStream("broker\\public.key")) {
-                fos.write(publicKey.getEncoded());
-            }
-            try (FileOutputStream fos = new FileOutputStream("broker\\private.key")) {
-                fos.write(privateKey.getEncoded());
-            }
-        } catch (NoSuchAlgorithmException e) {
-            e.printStackTrace();
+        try (FileOutputStream fos = new FileOutputStream("bPublic.key")) {
+            fos.write(publicKey.getEncoded());
+        }
+        try (FileOutputStream fos = new FileOutputStream("bPrivate.key")) {
+            fos.write(privateKey.getEncoded());
         }
         */
 
         // Read keys from files
-        publicKey = getPublicKey("broker\\public.key");
-        privateKey = getPrivateKey("broker\\private.key");
+        publicKey = KeyUtil.getPublicKey("bPublic.key");
+        privateKey = KeyUtil.getPrivateKey("bPrivate.key");
 
-        cust1Key = getPublicKey("customer\\public1.key");
-        cust2Key = getPublicKey("customer\\public2.key");
+        c1Key = KeyUtil.getPublicKey("c1Public.key");
+        c2Key = KeyUtil.getPublicKey("c2Public.key");
 
-        merchKey = getPublicKey("merchant\\public.key");
+        mKey = KeyUtil.getPublicKey("mPublic.key");
 
         // server is listening on port 1234
         ServerSocket ss = new ServerSocket(1234);
@@ -57,8 +49,7 @@ public class Broker
 
         // running infinite loop for getting
         // client request
-        while (true)
-        {
+        while (true) {
             // Accept the incoming request
             s = ss.accept();
 
@@ -85,76 +76,40 @@ public class Broker
 
             // start the thread.
             t.start();
-
         }
-    }
-
-    private static PublicKey getPublicKey(String path) {
-        try {
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-
-            File publicKeyFile = new File(path);
-            byte[] publicKeyBytes = Files.readAllBytes(publicKeyFile.toPath());
-
-            EncodedKeySpec publicKeySpec = new X509EncodedKeySpec(publicKeyBytes);
-            return keyFactory.generatePublic(publicKeySpec);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
-    }
-
-    private static PrivateKey getPrivateKey(String path) {
-        try {
-            KeyFactory keyFactory = KeyFactory.getInstance("RSA");
-
-            File privateKeyFile = new File(path);
-            byte[] privateKeyBytes = Files.readAllBytes(privateKeyFile.toPath());
-
-            EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
-            return keyFactory.generatePrivate(privateKeySpec);
-        } catch (Exception e) {
-            e.printStackTrace();
-        }
-        return null;
     }
 }
 
 // ClientHandler class
-class ClientHandler implements Runnable
-{
+class ClientHandler implements Runnable {
     Scanner scn = new Scanner(System.in);
-    private String name;
+    private final String name;
     final DataInputStream dis;
     final DataOutputStream dos;
     Socket s;
-    boolean isloggedin;
+    boolean isLoggedIn;
 
     // constructor
-    public ClientHandler(Socket s, String name,
-                         DataInputStream dis, DataOutputStream dos) {
+    public ClientHandler(Socket s, String name, DataInputStream dis, DataOutputStream dos) {
         this.dis = dis;
         this.dos = dos;
         this.name = name;
         this.s = s;
-        this.isloggedin=true;
+        this.isLoggedIn = true;
     }
 
     @Override
     public void run() {
-
         String received;
-        while (true)
-        {
-            try
-            {
+        while (true) {
+            try {
                 // receive the string
                 received = dis.readUTF();
 
                 System.out.println(received);
 
-                if(received.equals("logout")){
-                    this.isloggedin=false;
+                if(received.equals("logout")) {
+                    this.isLoggedIn = false;
                     this.s.close();
                     break;
                 }
@@ -166,29 +121,24 @@ class ClientHandler implements Runnable
 
                 // search for the recipient in the connected devices list.
                 // ar is the vector storing client of active users
-                for (ClientHandler mc : Broker.ar)
-                {
+                for (ClientHandler mc : Broker.ar) {
                     // if the recipient is found, write on its
                     // output stream
-                    if (mc.name.equals(recipient) && mc.isloggedin)
-                    {
-                        mc.dos.writeUTF(this.name+" : "+MsgToSend);
+                    if (mc.name.equals(recipient) && mc.isLoggedIn) {
+                        mc.dos.writeUTF(this.name + " : " + MsgToSend);
                         break;
                     }
                 }
             } catch (IOException e) {
-
                 e.printStackTrace();
             }
-
         }
-        try
-        {
+        try {
             // closing resources
             this.dis.close();
             this.dos.close();
 
-        }catch(IOException e){
+        } catch(IOException e) {
             e.printStackTrace();
         }
     }
