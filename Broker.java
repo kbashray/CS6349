@@ -153,6 +153,15 @@ class ClientHandler implements Runnable {
                                 eMsg = MsgUtil.encryptAndSignMsg("failure", key, Broker.privateKey);
                             dos.writeUTF(eMsg);
                             break;
+                        case "tran":
+                            String transId = dMsg;
+                            String payment = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), key, Broker.privateKey);
+
+                            // Process payment
+
+                            eMsg = MsgUtil.encryptAndSignMsg("chec" + transId, Broker.mKey, Broker.privateKey);
+                            Broker.ar.get("merchant").dos.writeUTF("broker#" + eMsg);
+                            break;
                         default:
                             break;
                     }

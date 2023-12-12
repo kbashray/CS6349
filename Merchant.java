@@ -23,6 +23,9 @@ public class Merchant {
     // Hash maps with products
     static Map<String, String> products = new HashMap<>();
 
+    // Hash maps with transactions
+    static Map<String, String> transactions = new HashMap<>();
+
     public static void main(String[] args) throws Exception {
         // Used to generate public private key pair
         //KeyUtil.generateRSAKeys("m");
@@ -58,8 +61,6 @@ public class Merchant {
         String dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
         if (!dMsg.equals(r))
             throw new Exception("broker validation failed");
-        else
-            System.out.println("broker validated");
 
         dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
         eMsg = MsgUtil.encryptAndSignMsg(dMsg, bKey, privateKey);
@@ -107,7 +108,6 @@ public class Merchant {
                     try {
                         // read the message sent to this client
                         String received = dis.readUTF();
-                        System.out.println(received);
 
                         String[] msg = received.split("#");
                         String sender = msg[0];
@@ -140,6 +140,25 @@ public class Merchant {
                                         pList += name + "/";
                                     String eMsg = MsgUtil.encryptMsgAES(pList, skMap.get(sender), ivMap.get(sender));
                                     dos.writeUTF(sender + "#" + eMsg);
+                                    break;
+                                case "purc":
+                                    if (products.containsKey(dMsg)) {
+                                        int transId = new Random().nextInt();
+                                        transactions.put(transId + "", sender + ":" + dMsg);
+
+                                        eMsg = MsgUtil.encryptMsgAES(transId + "", skMap.get(sender), ivMap.get(sender));
+                                        dos.writeUTF(sender + "#" + eMsg);
+                                    } else {
+                                        eMsg = MsgUtil.encryptMsgAES("invalid", skMap.get(sender), ivMap.get(sender));
+                                        dos.writeUTF(sender + "#" + eMsg);
+                                    }
+                                case "chec":
+                                    if (transactions.containsKey(dMsg)) {
+                                        String[] transaction = transactions.get(dMsg).split(":");
+                                        eMsg = MsgUtil.encryptMsgAES(products.get(transaction[1]), skMap.get(transaction[0]), ivMap.get(transaction[0]));
+                                        dos.writeUTF(transaction[0] + "#" + eMsg);
+                                        transactions.remove(dMsg);
+                                    }
                                     break;
                                 default:
                                     break;

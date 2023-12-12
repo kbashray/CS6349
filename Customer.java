@@ -58,8 +58,6 @@ public class Customer  {
         String dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
         if (!dMsg.equals(r))
             throw new Exception("broker validation failed");
-        else
-            System.out.println("broker validated");
 
         dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
         eMsg = MsgUtil.encryptAndSignMsg(dMsg, bKey, privateKey);
@@ -105,8 +103,6 @@ public class Customer  {
         dMsg = MsgUtil.decryptMsgAES(dis.readUTF().split("#")[1], sKey, iv);
         if (!dMsg.equals(r))
             throw new Exception("merchant validation failed");
-        else
-            System.out.println("merchant validated");
 
         // Main loop
         while (true) {
@@ -122,7 +118,27 @@ public class Customer  {
                 for (String product : products)
                     System.out.println("\t" + product);
             } else if (command.equals("purchase")) {
+                System.out.print("Enter product name >> ");
+                String name = scn.nextLine();
+                eMsg = MsgUtil.encryptMsgAES("purc" + name, sKey, iv);
+                dos.writeUTF("merchant#" + eMsg);
 
+                dMsg = MsgUtil.decryptMsgAES(dis.readUTF().split("#")[1], sKey, iv);
+                if (dMsg.equals("invalid"))
+                    System.out.println("Requested product not available.");
+                else {
+                    String transId = dMsg;
+                    System.out.print("Enter payment info >> ");
+                    String payment = scn.nextLine();
+
+                    eMsg = MsgUtil.encryptAndSignMsg("tran" + transId, bKey, privateKey);
+                    dos.writeUTF("broker#" + eMsg);
+                    eMsg = MsgUtil.encryptAndSignMsg(payment, bKey, privateKey);
+                    dos.writeUTF(eMsg);
+
+                    dMsg = MsgUtil.decryptMsgAES(dis.readUTF().split("#")[1], sKey, iv);
+                    System.out.println(dMsg);
+                }
             } else
                 System.out.println("Invalid command.");
         }
