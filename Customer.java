@@ -108,43 +108,23 @@ public class Customer  {
         else
             System.out.println("merchant validated");
 
-        // sendMessage thread
-        Thread sendMessage = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    // read the message to deliver.
-                    String msg = scn.nextLine();
+        // Main loop
+        while (true) {
+            System.out.print("Enter a command (browse, purchase) >> ");
+            String command = scn.nextLine();
+            if (command.equals("browse")) {
+                eMsg = MsgUtil.encryptMsgAES("brow", sKey, iv);
+                dos.writeUTF("merchant#" + eMsg);
 
-                    try {
-                        // write on the output stream
-                        dos.writeUTF(msg);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        break;
-                    }
-                }
-            }
-        });
+                dMsg = MsgUtil.decryptMsgAES(dis.readUTF().split("#")[1], sKey, iv);
+                String[] products = dMsg.split("/");
+                System.out.println("Available products:");
+                for (String product : products)
+                    System.out.println("\t" + product);
+            } else if (command.equals("purchase")) {
 
-        // readMessage thread
-        Thread readMessage = new Thread(new Runnable() {
-            @Override
-            public void run() {
-                while (true) {
-                    try {
-                        // read the message sent to this client
-                        String msg = dis.readUTF();
-                        System.out.println(msg);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        break;
-                    }
-                }
-            }
-        });
-
-        sendMessage.start();
-        readMessage.start();
+            } else
+                System.out.println("Invalid command.");
+        }
     }
 }

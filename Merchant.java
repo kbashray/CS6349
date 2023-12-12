@@ -134,6 +134,13 @@ public class Merchant {
                             String code = dMsg.substring(0, 4);
                             dMsg = dMsg.substring(4);
                             switch (code) {
+                                case "brow":
+                                    String pList = "";
+                                    for (String name : products.keySet())
+                                        pList += name + "/";
+                                    String eMsg = MsgUtil.encryptMsgAES(pList, skMap.get(sender), ivMap.get(sender));
+                                    dos.writeUTF(sender + "#" + eMsg);
+                                    break;
                                 default:
                                     break;
                             }
