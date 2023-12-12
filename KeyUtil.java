@@ -1,13 +1,25 @@
-import java.io.File;
+import java.io.*;
 import java.nio.file.Files;
-import java.security.KeyFactory;
-import java.security.PrivateKey;
-import java.security.PublicKey;
-import java.security.spec.EncodedKeySpec;
-import java.security.spec.PKCS8EncodedKeySpec;
-import java.security.spec.X509EncodedKeySpec;
+import java.security.*;
+import java.security.spec.*;
 
 public class KeyUtil {
+    public static void generateKeys(String name) throws Exception {
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
+        generator.initialize(2048);
+        KeyPair pair = generator.generateKeyPair();
+
+        PrivateKey privateKey = pair.getPrivate();
+        PublicKey publicKey = pair.getPublic();
+
+        try (FileOutputStream fos = new FileOutputStream(name + "Public.key")) {
+            fos.write(publicKey.getEncoded());
+        }
+        try (FileOutputStream fos = new FileOutputStream(name + "Private.key")) {
+            fos.write(privateKey.getEncoded());
+        }
+    }
+
     public static PublicKey getPublicKey(String path) throws Exception {
         KeyFactory keyFactory = KeyFactory.getInstance("RSA");
 

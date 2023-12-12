@@ -1,6 +1,6 @@
 import java.io.*;
 import java.net.*;
-import java.util.Scanner;
+import java.util.*;
 import java.security.*;
 
 public class Merchant {
@@ -15,21 +15,7 @@ public class Merchant {
 
     public static void main(String[] args) throws Exception {
         // Used to generate public private key pair
-        /*
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-        generator.initialize(2048);
-        KeyPair pair = generator.generateKeyPair();
-
-        PrivateKey privateKey = pair.getPrivate();
-        PublicKey publicKey = pair.getPublic();
-
-        try (FileOutputStream fos = new FileOutputStream("mPublic.key")) {
-            fos.write(publicKey.getEncoded());
-        }
-        try (FileOutputStream fos = new FileOutputStream("mPrivate.key")) {
-            fos.write(privateKey.getEncoded());
-        }
-        */
+        //KeyUtil.generateKeys("m");
 
         // Read public private keys from files
         publicKey = KeyUtil.getPublicKey("mPublic.key");
@@ -50,6 +36,23 @@ public class Merchant {
         DataOutputStream dos = new DataOutputStream(s.getOutputStream());
 
         dos.writeUTF("merchant");
+
+        byte[] bytes = new byte[32];
+        new Random().nextBytes(bytes);
+        String r = Base64.getEncoder().encodeToString(bytes);
+
+        String eMsg = MsgUtil.encryptAndSignMsg("chal" + r, bKey, privateKey);
+        dos.writeUTF("broker#" + eMsg);
+
+        String chalRe = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        if (!chalRe.equals(r))
+            throw new Exception("broker validation failed");
+        else
+            System.out.println("broker validated");
+
+        String dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        eMsg = MsgUtil.encryptAndSignMsg(dMsg, bKey, privateKey);
+        dos.writeUTF(eMsg);
 
         // sendMessage thread
         Thread sendMessage = new Thread(new Runnable() {

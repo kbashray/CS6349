@@ -3,10 +3,9 @@ import java.util.*;
 import java.net.*;
 import java.security.*;
 
-public class Broker
-{
-    // Vector to store active clients
-    static Vector<ClientHandler> ar = new Vector<>();
+public class Broker {
+    // Hash map to store active clients
+    static Map<String, ClientHandler> ar = new HashMap<>();
 
     // Public private key pair
     static PublicKey publicKey;
@@ -17,21 +16,7 @@ public class Broker
 
     public static void main(String[] args) throws Exception {
         // Used to generate public private key pair
-        /*
-        KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
-        generator.initialize(2048);
-        KeyPair pair = generator.generateKeyPair();
-
-        PrivateKey privateKey = pair.getPrivate();
-        PublicKey publicKey = pair.getPublic();
-
-        try (FileOutputStream fos = new FileOutputStream("bPublic.key")) {
-            fos.write(publicKey.getEncoded());
-        }
-        try (FileOutputStream fos = new FileOutputStream("bPrivate.key")) {
-            fos.write(privateKey.getEncoded());
-        }
-        */
+        //KeyUtil.generateKeys("b");
 
         // Read keys from files
         publicKey = KeyUtil.getPublicKey("bPublic.key");
@@ -61,10 +46,16 @@ public class Broker
 
             String name = dis.readUTF();
 
+            PublicKey key = switch (name) {
+                case "customer1" -> c1Key;
+                case "customer2" -> c2Key;
+                default -> mKey;
+            };
+
             System.out.println("Creating a new handler for this client...");
 
             // Create a new handler object for handling this request.
-            ClientHandler mtch = new ClientHandler(s, name, dis, dos);
+            ClientHandler mtch = new ClientHandler(s, name, key, dis, dos);
 
             // Create a new Thread with this object.
             Thread t = new Thread(mtch);
@@ -72,7 +63,7 @@ public class Broker
             System.out.println("Adding this client to active client list");
 
             // add this client to active clients list
-            ar.add(mtch);
+            ar.put(name, mtch);
 
             // start the thread.
             t.start();
@@ -84,15 +75,17 @@ public class Broker
 class ClientHandler implements Runnable {
     Scanner scn = new Scanner(System.in);
     private final String name;
+    private final PublicKey key;
     final DataInputStream dis;
     final DataOutputStream dos;
     Socket s;
     boolean isLoggedIn;
 
     // constructor
-    public ClientHandler(Socket s, String name, DataInputStream dis, DataOutputStream dos) {
+    public ClientHandler(Socket s, String name, PublicKey key, DataInputStream dis, DataOutputStream dos) {
         this.dis = dis;
         this.dos = dos;
+        this.key = key;
         this.name = name;
         this.s = s;
         this.isLoggedIn = true;
@@ -115,21 +108,39 @@ class ClientHandler implements Runnable {
                 }
 
                 // break the string into message and recipient part
-                StringTokenizer st = new StringTokenizer(received, "#");
-                String MsgToSend = st.nextToken();
-                String recipient = st.nextToken();
+                String[] msg = received.split("#");
 
-                // search for the recipient in the connected devices list.
-                // ar is the vector storing client of active users
-                for (ClientHandler mc : Broker.ar) {
-                    // if the recipient is found, write on its
-                    // output stream
-                    if (mc.name.equals(recipient) && mc.isLoggedIn) {
-                        mc.dos.writeUTF(this.name + " : " + MsgToSend);
-                        break;
+                if (msg[0].equals("broker")) {
+                    String dMsg = MsgUtil.decryptMsg(msg[1], key, Broker.privateKey);
+                    String code = dMsg.substring(0, 4);
+                    dMsg = dMsg.substring(4);
+                    switch (code) {
+                        case "chal":
+                            String eMsg = MsgUtil.encryptAndSignMsg(dMsg, key, Broker.privateKey);
+                            dos.writeUTF(eMsg);
+
+                            byte[] bytes = new byte[32];
+                            new Random().nextBytes(bytes);
+                            String r = Base64.getEncoder().encodeToString(bytes);
+
+                            eMsg = MsgUtil.encryptAndSignMsg(r, key, Broker.privateKey);
+                            dos.writeUTF(eMsg);
+
+                            String chalRe = MsgUtil.decryptMsg(dis.readUTF(), key, Broker.privateKey);
+                            if (!chalRe.equals(r))
+                                throw new Exception(name + " validation failed");
+                            else
+                                System.out.println(name + " validated");
+                            break;
                     }
                 }
-            } catch (IOException e) {
+                else {
+                    ClientHandler recipient = Broker.ar.get(msg[0]);
+                    if (recipient.isLoggedIn) {
+                        recipient.dos.writeUTF(this.name + " : " + msg[1]);
+                    }
+                }
+            } catch (Exception e) {
                 e.printStackTrace();
             }
         }
