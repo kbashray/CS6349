@@ -20,6 +20,9 @@ public class Merchant {
     static Map<String, SecretKey> skMap = new HashMap<>();
     static Map<String, IvParameterSpec> ivMap = new HashMap<>();
 
+    // Hash maps with products
+    static Map<String, String> products = new HashMap<>();
+
     public static void main(String[] args) throws Exception {
         // Used to generate public private key pair
         //KeyUtil.generateRSAKeys("m");
@@ -68,15 +71,30 @@ public class Merchant {
             public void run() {
                 while (true) {
                     // read the message to deliver.
-                    String msg = scn.nextLine();
+                    System.out.print("Enter a command (add, remove) >> ");
+                    String command = scn.nextLine();
 
-                    try {
-                        // write on the output stream
-                        dos.writeUTF(msg);
-                    } catch (IOException e) {
-                        e.printStackTrace();
-                        break;
-                    }
+                    if (command.equals("add")) {
+                        System.out.print("Enter product name >> ");
+                        String name = scn.nextLine();
+                        System.out.print("Enter product data >> ");
+                        String data = scn.nextLine();
+
+                        products.put(name, data);
+                        System.out.println("Product successfully added.");
+                    } else if (command.equals("remove")) {
+                        System.out.println("Current products:");
+                        for (String name : products.keySet())
+                            System.out.println("\t" + name);
+                        System.out.print("Enter product to be removed >> ");
+                        String name = scn.nextLine();
+                        if (products.containsKey(name)) {
+                            products.remove(name);
+                            System.out.println("Product successfully removed.");
+                        } else
+                            System.out.println("Invalid product name.");
+                    } else
+                        System.out.println("Invalid command.");
                 }
             }
         });
@@ -108,13 +126,14 @@ public class Merchant {
                             String eMsg = MsgUtil.encryptMsgAES(dMsg, key, iv);
                             dos.writeUTF(sender + "#" + eMsg);
                         } else {
-                            String dMsg = MsgUtil.decryptMsgAES(msg[1], Merchant.skMap.get(sender), Merchant.ivMap.get(sender));
+                            String dMsg;
+                            if (sender.equals("broker"))
+                                dMsg = MsgUtil.decryptAndVerifyMsg(msg[1], bKey, privateKey);
+                            else
+                                dMsg = MsgUtil.decryptMsgAES(msg[1], skMap.get(sender), ivMap.get(sender));
                             String code = dMsg.substring(0, 4);
                             dMsg = dMsg.substring(4);
                             switch (code) {
-                                case "chal":
-
-                                    break;
                                 default:
                                     break;
                             }
