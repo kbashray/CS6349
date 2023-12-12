@@ -1,3 +1,6 @@
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
+import javax.crypto.spec.SecretKeySpec;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -11,19 +14,21 @@ public class Merchant {
     static PrivateKey privateKey;
 
     // Broker public key
-    static PublicKey bKey, c1Key, c2Key;
+    static PublicKey bKey;
+
+    // Hash maps to store customer symmetric keys
+    static Map<String, SecretKey> skMap = new HashMap<>();
+    static Map<String, IvParameterSpec> ivMap = new HashMap<>();
 
     public static void main(String[] args) throws Exception {
         // Used to generate public private key pair
-        //KeyUtil.generateKeys("m");
+        //KeyUtil.generateRSAKeys("m");
 
         // Read public private keys from files
         publicKey = KeyUtil.getPublicKey("mPublic.key");
         privateKey = KeyUtil.getPrivateKey("mPrivate.key");
 
         bKey = KeyUtil.getPublicKey("bPublic.key");
-        c1Key = KeyUtil.getPublicKey("c1Public.key");
-        c2Key = KeyUtil.getPublicKey("c2Public.key");
 
         Scanner scn = new Scanner(System.in);
 
@@ -47,13 +52,13 @@ public class Merchant {
         String eMsg = MsgUtil.encryptAndSignMsg("chal" + r, bKey, privateKey);
         dos.writeUTF("broker#" + eMsg);
 
-        String dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        String dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
         if (!dMsg.equals(r))
             throw new Exception("broker validation failed");
         else
             System.out.println("broker validated");
 
-        dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
         eMsg = MsgUtil.encryptAndSignMsg(dMsg, bKey, privateKey);
         dos.writeUTF(eMsg);
 
@@ -88,22 +93,31 @@ public class Merchant {
 
                         String[] msg = received.split("#");
                         String sender = msg[0];
-                        PublicKey key = switch (sender) {
-                            case "customer1" -> c1Key;
-                            case "customer2" -> c2Key;
-                            default -> bKey;
-                        };
-                        String dMsg = MsgUtil.decryptMsg(msg[1], key, privateKey);
+                        if (msg[1].substring(0, 4).equals("chal")) {
+                            msg = msg[1].substring(4).split(":");
+                            String dMsg = MsgUtil.decryptMsgRSA(msg[0], privateKey);
+                            String dKey = MsgUtil.decryptMsgRSA(msg[1], privateKey);
+                            String dIv = MsgUtil.decryptMsgRSA(msg[2], privateKey);
 
-                        String code = dMsg.substring(0, 4);
-                        dMsg = dMsg.substring(4);
-                        switch (code) {
-                            case "chal":
-                                String eMsg = MsgUtil.encryptAndSignMsg(dMsg, key, privateKey);
-                                dos.writeUTF(sender + "#" + eMsg);
-                                break;
-                            default:
-                                break;
+                            SecretKey key = new SecretKeySpec(Base64.getDecoder().decode(dKey), "AES");
+                            IvParameterSpec iv = new IvParameterSpec(Base64.getDecoder().decode(dIv));
+
+                            Merchant.skMap.put(sender, key);
+                            Merchant.ivMap.put(sender, iv);
+
+                            String eMsg = MsgUtil.encryptMsgAES(dMsg, key, iv);
+                            dos.writeUTF(sender + "#" + eMsg);
+                        } else {
+                            String dMsg = MsgUtil.decryptMsgAES(msg[1], Merchant.skMap.get(sender), Merchant.ivMap.get(sender));
+                            String code = dMsg.substring(0, 4);
+                            dMsg = dMsg.substring(4);
+                            switch (code) {
+                                case "chal":
+
+                                    break;
+                                default:
+                                    break;
+                            }
                         }
                     } catch (Exception e) {
                         e.printStackTrace();

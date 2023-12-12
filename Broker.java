@@ -26,7 +26,7 @@ public class Broker {
         }
 
         // Used to generate public private key pair
-        //KeyUtil.generateKeys("b");
+        //KeyUtil.generateRSAKeys("b");
 
         // Read keys from files
         publicKey = KeyUtil.getPublicKey("bPublic.key");
@@ -121,7 +121,7 @@ class ClientHandler implements Runnable {
                 String[] msg = received.split("#");
 
                 if (msg[0].equals("broker")) {
-                    String dMsg = MsgUtil.decryptMsg(msg[1], key, Broker.privateKey);
+                    String dMsg = MsgUtil.decryptAndVerifyMsg(msg[1], key, Broker.privateKey);
                     String code = dMsg.substring(0, 4);
                     dMsg = dMsg.substring(4);
                     switch (code) {
@@ -136,7 +136,7 @@ class ClientHandler implements Runnable {
                             eMsg = MsgUtil.encryptAndSignMsg(r, key, Broker.privateKey);
                             dos.writeUTF(eMsg);
 
-                            dMsg = MsgUtil.decryptMsg(dis.readUTF(), key, Broker.privateKey);
+                            dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), key, Broker.privateKey);
                             if (!dMsg.equals(r))
                                 throw new Exception(name + " validation failed");
                             else
@@ -144,7 +144,7 @@ class ClientHandler implements Runnable {
                             break;
                         case "lgin":
                             String user = dMsg;
-                            String pass = MsgUtil.decryptMsg(dis.readUTF(), key, Broker.privateKey);
+                            String pass = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), key, Broker.privateKey);
 
                             if (Broker.ac.containsKey(user) && Broker.ac.get(user).equals(pass)) {
                                 eMsg = MsgUtil.encryptAndSignMsg("success", key, Broker.privateKey);

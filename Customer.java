@@ -1,5 +1,5 @@
-import com.sun.net.httpserver.Authenticator;
-
+import javax.crypto.SecretKey;
+import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -15,11 +15,15 @@ public class Customer  {
     // Broker and merchant public keys
     static PublicKey bKey, mKey;
 
+    // Merchant symmetric key
+    static SecretKey sKey;
+    static IvParameterSpec iv;
+
     public static void main(String[] args) throws Exception {
         int id = Integer.parseInt(args[0]);
 
         // Used to generate public private key pair
-        //KeyUtil.generateKeys("c" + id);
+        //KeyUtil.generateRSAKeys("c" + id);
 
         // Read public private keys from files
         publicKey = KeyUtil.getPublicKey("c" + id + "Public.key");
@@ -51,13 +55,13 @@ public class Customer  {
         String eMsg = MsgUtil.encryptAndSignMsg("chal" + r, bKey, privateKey);
         dos.writeUTF("broker#" + eMsg);
 
-        String dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        String dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
         if (!dMsg.equals(r))
             throw new Exception("broker validation failed");
         else
             System.out.println("broker validated");
 
-        dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
         eMsg = MsgUtil.encryptAndSignMsg(dMsg, bKey, privateKey);
         dos.writeUTF(eMsg);
 
@@ -74,7 +78,7 @@ public class Customer  {
             eMsg = MsgUtil.encryptAndSignMsg(pass, bKey, privateKey);
             dos.writeUTF(eMsg);
 
-            dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+            dMsg = MsgUtil.decryptAndVerifyMsg(dis.readUTF(), bKey, privateKey);
             if (dMsg.equals("success"))
                 loggedIn = true;
             else
@@ -82,15 +86,23 @@ public class Customer  {
         } while (!loggedIn);
         System.out.println("Login successful");
 
-        // RSA authentication with merchant
+        // RSA authentication with merchant and create session key
         bytes = new byte[32];
         new Random().nextBytes(bytes);
         r = Base64.getEncoder().encodeToString(bytes);
 
-        eMsg = MsgUtil.encryptAndSignMsg("chal" + r, mKey, privateKey);
-        dos.writeUTF("merchant#" + eMsg);
+        sKey = KeyUtil.generateAESKey();
+        iv = KeyUtil.generateIv();
 
-        dMsg = MsgUtil.decryptMsg(dis.readUTF().split("#")[1], mKey, privateKey);
+        String ssKey = Base64.getEncoder().encodeToString(sKey.getEncoded());
+        String sIv = Base64.getEncoder().encodeToString(iv.getIV());
+
+        eMsg = MsgUtil.encryptMsgRSA(r, mKey);
+        String eKey = MsgUtil.encryptMsgRSA(ssKey, mKey);
+        String eIv = MsgUtil.encryptMsgRSA(sIv, mKey);
+        dos.writeUTF("merchant#chal" + eMsg + ":" + eKey + ":" + eIv);
+
+        dMsg = MsgUtil.decryptMsgAES(dis.readUTF().split("#")[1], sKey, iv);
         if (!dMsg.equals(r))
             throw new Exception("merchant validation failed");
         else

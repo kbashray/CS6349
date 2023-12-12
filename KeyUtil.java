@@ -1,10 +1,12 @@
+import javax.crypto.*;
+import javax.crypto.spec.IvParameterSpec;
 import java.io.*;
 import java.nio.file.Files;
 import java.security.*;
 import java.security.spec.*;
 
 public class KeyUtil {
-    public static void generateKeys(String name) throws Exception {
+    public static void generateRSAKeys(String name) throws Exception {
         KeyPairGenerator generator = KeyPairGenerator.getInstance("RSA");
         generator.initialize(2048);
         KeyPair pair = generator.generateKeyPair();
@@ -38,5 +40,18 @@ public class KeyUtil {
 
         EncodedKeySpec privateKeySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
         return keyFactory.generatePrivate(privateKeySpec);
+    }
+
+    public static SecretKey generateAESKey() throws Exception{
+        KeyGenerator keyGenerator = KeyGenerator.getInstance("AES");
+        keyGenerator.init(128);
+        SecretKey key = keyGenerator.generateKey();
+        return key;
+    }
+
+    public static IvParameterSpec generateIv() {
+        byte[] iv = new byte[16];
+        new SecureRandom().nextBytes(iv);
+        return new IvParameterSpec(iv);
     }
 }
