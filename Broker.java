@@ -7,6 +7,9 @@ public class Broker {
     // Hash map to store active clients
     static Map<String, ClientHandler> ar = new HashMap<>();
 
+    // Hash map to store usernames and passwords
+    static Map<String, String> ac = new HashMap<>();
+
     // Public private key pair
     static PublicKey publicKey;
     static PrivateKey privateKey;
@@ -15,6 +18,13 @@ public class Broker {
     static PublicKey c1Key, c2Key, mKey;
 
     public static void main(String[] args) throws Exception {
+        // Load usernames and passwords from file
+        Scanner sc = new Scanner(new File("passwords.txt"));
+        while (sc.hasNextLine()) {
+            String[] account = sc.nextLine().split(":");
+            ac.put(account[0], account[1]);
+        }
+
         // Used to generate public private key pair
         //KeyUtil.generateKeys("b");
 
@@ -88,7 +98,7 @@ class ClientHandler implements Runnable {
         this.key = key;
         this.name = name;
         this.s = s;
-        this.isLoggedIn = true;
+        this.isLoggedIn = name.equals("merchant"); // merchant starts logged in, customers have to log in manually
     }
 
     @Override
@@ -126,18 +136,31 @@ class ClientHandler implements Runnable {
                             eMsg = MsgUtil.encryptAndSignMsg(r, key, Broker.privateKey);
                             dos.writeUTF(eMsg);
 
-                            String chalRe = MsgUtil.decryptMsg(dis.readUTF(), key, Broker.privateKey);
-                            if (!chalRe.equals(r))
+                            dMsg = MsgUtil.decryptMsg(dis.readUTF(), key, Broker.privateKey);
+                            if (!dMsg.equals(r))
                                 throw new Exception(name + " validation failed");
                             else
                                 System.out.println(name + " validated");
+                            break;
+                        case "lgin":
+                            String user = dMsg;
+                            String pass = MsgUtil.decryptMsg(dis.readUTF(), key, Broker.privateKey);
+
+                            if (Broker.ac.containsKey(user) && Broker.ac.get(user).equals(pass)) {
+                                eMsg = MsgUtil.encryptAndSignMsg("success", key, Broker.privateKey);
+                                this.isLoggedIn = true;
+                            } else
+                                eMsg = MsgUtil.encryptAndSignMsg("failure", key, Broker.privateKey);
+                            dos.writeUTF(eMsg);
+                            break;
+                        default:
                             break;
                     }
                 }
                 else {
                     ClientHandler recipient = Broker.ar.get(msg[0]);
                     if (recipient.isLoggedIn) {
-                        recipient.dos.writeUTF(this.name + " : " + msg[1]);
+                        recipient.dos.writeUTF(this.name + "#" + msg[1]);
                     }
                 }
             } catch (Exception e) {

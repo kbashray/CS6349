@@ -11,7 +11,7 @@ public class Merchant {
     static PrivateKey privateKey;
 
     // Broker public key
-    static PublicKey bKey;
+    static PublicKey bKey, c1Key, c2Key;
 
     public static void main(String[] args) throws Exception {
         // Used to generate public private key pair
@@ -22,6 +22,8 @@ public class Merchant {
         privateKey = KeyUtil.getPrivateKey("mPrivate.key");
 
         bKey = KeyUtil.getPublicKey("bPublic.key");
+        c1Key = KeyUtil.getPublicKey("c1Public.key");
+        c2Key = KeyUtil.getPublicKey("c2Public.key");
 
         Scanner scn = new Scanner(System.in);
 
@@ -37,6 +39,7 @@ public class Merchant {
 
         dos.writeUTF("merchant");
 
+        // RSA authentication with broker
         byte[] bytes = new byte[32];
         new Random().nextBytes(bytes);
         String r = Base64.getEncoder().encodeToString(bytes);
@@ -44,13 +47,13 @@ public class Merchant {
         String eMsg = MsgUtil.encryptAndSignMsg("chal" + r, bKey, privateKey);
         dos.writeUTF("broker#" + eMsg);
 
-        String chalRe = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
-        if (!chalRe.equals(r))
+        String dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        if (!dMsg.equals(r))
             throw new Exception("broker validation failed");
         else
             System.out.println("broker validated");
 
-        String dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
         eMsg = MsgUtil.encryptAndSignMsg(dMsg, bKey, privateKey);
         dos.writeUTF(eMsg);
 
@@ -80,9 +83,29 @@ public class Merchant {
                 while (true) {
                     try {
                         // read the message sent to this client
-                        String msg = dis.readUTF();
-                        System.out.println(msg);
-                    } catch (IOException e) {
+                        String received = dis.readUTF();
+                        System.out.println(received);
+
+                        String[] msg = received.split("#");
+                        String sender = msg[0];
+                        PublicKey key = switch (sender) {
+                            case "customer1" -> c1Key;
+                            case "customer2" -> c2Key;
+                            default -> bKey;
+                        };
+                        String dMsg = MsgUtil.decryptMsg(msg[1], key, privateKey);
+
+                        String code = dMsg.substring(0, 4);
+                        dMsg = dMsg.substring(4);
+                        switch (code) {
+                            case "chal":
+                                String eMsg = MsgUtil.encryptAndSignMsg(dMsg, key, privateKey);
+                                dos.writeUTF(sender + "#" + eMsg);
+                                break;
+                            default:
+                                break;
+                        }
+                    } catch (Exception e) {
                         e.printStackTrace();
                         break;
                     }

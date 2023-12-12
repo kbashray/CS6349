@@ -6,7 +6,7 @@ public class MsgUtil {
     public static String encryptAndSignMsg(String message, PublicKey publicKey, PrivateKey privateKey) throws Exception {
         Cipher encryptCipher = Cipher.getInstance("RSA/ECB/PKCS1Padding");
         encryptCipher.init(Cipher.ENCRYPT_MODE, publicKey);
-        byte[] eBytes = encryptCipher.doFinal(Base64.getDecoder().decode(message));
+        byte[] eBytes = encryptCipher.doFinal(Base64.getEncoder().encode(message.getBytes()));
         String eMsg = Base64.getEncoder().encodeToString(eBytes);
 
         Signature signature = Signature.getInstance("SHA256withRSA");
@@ -31,6 +31,6 @@ public class MsgUtil {
         decryptCipher.init(Cipher.DECRYPT_MODE, privateKey);
         byte[] dBytes = decryptCipher.doFinal(Base64.getDecoder().decode(msg[0]));
 
-        return Base64.getEncoder().encodeToString(dBytes);
+        return new String(Base64.getDecoder().decode(dBytes));
     }
 }

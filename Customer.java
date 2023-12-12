@@ -1,3 +1,5 @@
+import com.sun.net.httpserver.Authenticator;
+
 import java.io.*;
 import java.net.*;
 import java.util.*;
@@ -41,6 +43,7 @@ public class Customer  {
 
         dos.writeUTF("customer" + id);
 
+        // RSA authentication with broker
         byte[] bytes = new byte[32];
         new Random().nextBytes(bytes);
         String r = Base64.getEncoder().encodeToString(bytes);
@@ -48,15 +51,50 @@ public class Customer  {
         String eMsg = MsgUtil.encryptAndSignMsg("chal" + r, bKey, privateKey);
         dos.writeUTF("broker#" + eMsg);
 
-        String chalRe = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
-        if (!chalRe.equals(r))
+        String dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        if (!dMsg.equals(r))
             throw new Exception("broker validation failed");
         else
             System.out.println("broker validated");
 
-        String dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+        dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
         eMsg = MsgUtil.encryptAndSignMsg(dMsg, bKey, privateKey);
         dos.writeUTF(eMsg);
+
+        // Login
+        boolean loggedIn = false;
+        do {
+            System.out.print("Username: ");
+            String user = scn.nextLine();
+            System.out.print("Password: ");
+            String pass = scn.nextLine();
+
+            eMsg = MsgUtil.encryptAndSignMsg("lgin" + user, bKey, privateKey);
+            dos.writeUTF("broker#" + eMsg);
+            eMsg = MsgUtil.encryptAndSignMsg(pass, bKey, privateKey);
+            dos.writeUTF(eMsg);
+
+            dMsg = MsgUtil.decryptMsg(dis.readUTF(), bKey, privateKey);
+            if (dMsg.equals("success"))
+                loggedIn = true;
+            else
+                System.out.println("Username or pass was incorrect. Please try again.");
+        } while (!loggedIn);
+        System.out.println("Login successful");
+
+        // RSA authentication with merchant
+        bytes = new byte[32];
+        new Random().nextBytes(bytes);
+        r = Base64.getEncoder().encodeToString(bytes);
+
+        eMsg = MsgUtil.encryptAndSignMsg("chal" + r, mKey, privateKey);
+        dos.writeUTF("merchant#" + eMsg);
+
+        dMsg = MsgUtil.decryptMsg(dis.readUTF().split("#")[1], mKey, privateKey);
+        if (!dMsg.equals(r))
+            throw new Exception("merchant validation failed");
+        else
+            System.out.println("merchant validated");
 
         // sendMessage thread
         Thread sendMessage = new Thread(new Runnable() {
